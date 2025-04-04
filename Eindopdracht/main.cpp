@@ -10,6 +10,7 @@ it will then calculate the distance and change the pitch of the buzzer according
 #include <avr/io.h>
 #include <util/delay.h>
 #include <avr/interrupt.h>
+#include "segment_display.h"
 
 #define TRIG PC5
 #define ECHO PC4
@@ -18,14 +19,6 @@ it will then calculate the distance and change the pitch of the buzzer according
 uint16_t watchdog;
 uint16_t duration;
 volatile uint8_t buzzer_state = 0;
-
-void wait(int ms)
-{
-	for (int i = 0; i < ms; i++)
-	{
-		_delay_ms(1);
-	}
-}
 
 ISR(TIMER1_OVF_vect)
 {
@@ -36,6 +29,7 @@ ISR(TIMER1_OVF_vect)
 ISR(TIMER3_OVF_vect)
 {
 	PORTB ^= (1 << PB2);
+	writeLedDisplay(duration);
 }
 
 void set_timer1_interupt(int ms){
@@ -65,6 +59,7 @@ void buzz_ms(int duration)
 // Main function
 int main(void)
 {
+	setup_segment_display();
 	watchdog = 0;
 	duration = 0;
 
@@ -102,6 +97,7 @@ int main(void)
 		{
 			buzz_ms(duration * 10);
 			//set_timer1_interupt(duration * 5);
+			
 		}
 		duration = 0;
 	}
