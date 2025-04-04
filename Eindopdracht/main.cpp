@@ -15,19 +15,9 @@ it will then calculate the distance and change the pitch of the buzzer according
 #define ECHO PC4
 #define BUZZ PA4
 
-#define TIMER_LENGTH 64000
-
-// Global variables
 uint16_t watchdog;
 uint16_t duration;
-
-// Interrupts
-
-ISR(TIMER1_OVF_vect)
-{
-	TCNT1 = TIMER_LENGTH;
-}
-// Functions
+volatile uint8_t buzzer_state = 0;
 
 void wait(int ms)
 {
@@ -37,85 +27,82 @@ void wait(int ms)
 	}
 }
 
-void wait_us(int us)
+ISR(TIMER1_OVF_vect)
 {
-	for (int i = 0; i < us; i++)
-	{
-		_delay_us(1);
-	}
+	buzzer_state = !buzzer_state;
+	PORTA = (buzzer_state << BUZZ); 
 }
 
-void buzzer_init(void)
+ISR(TIMER3_OVF_vect)
 {
-	DDRA |= (1 << BUZZ);
+	PORTB ^= (1 << PB2);
 }
 
-void buzzer_on(void)
-{
-	PORTA |= (1 << BUZZ);
+void set_timer1_interupt(int ms){
+	TCNT1 = 39062 * ms/1000;
 }
 
-void buzzer_off(void)
-{
-	PORTA &= ~(1 << BUZZ);
+void init_timer1(){
+	TCCR1A = 0x00;
+	TCCR1B = (1 << 2); //256 prescaler
+	TIMSK |= (1 << TOIE1); //Init timer 1 interupt
+}
+
+void init_timer3(){
+	TCCR3A = 0x00;
+	TCCR3B = (1 << 2); //256 prescaler
+	ETIMSK |= (1 << TOIE3); //Init timer 3 interupt
 }
 
 void buzz_ms(int duration)
 {
-	buzzer_on();
-	wait(duration / 2);
-	buzzer_off();
-	wait(duration / 2);
+	PORTB |= (1<<BUZZ);
+	wait(duration);
+	PORTB &= ~(1<<BUZZ);
+	wait(duration);
 }
 
 // Main function
 int main(void)
 {
-	// init global variables
 	watchdog = 0;
 	duration = 0;
 
 	DDRC |= (1 << TRIG);
-	DDRC &= ~(1 << ECHO);
-	DDRA = 0xFF;
-	DDRB = 0x00;
-
-	TCNT1 = TIMER_LENGTH;
-
-	TCCR1A = 0x00;
-	TCCR1B = (1 << CS10) | (1 << CS12);
-	// Timer mode with 1024 prescler
-	TIMSK = (1 << TOIE1); // Enable timer1 overflow interrupt(TOIE1)
-	sei();
-	// Enable global interrupts by setting global interrupt enable bit in SREG
-
+	DDRC &= ~(0 << ECHO);
+	DDRA |= (1 << BUZZ);
+	DDRB |= (1 << BUZZ);
+	DDRB |= (1 << PB2);
+	
+	init_timer1();
+	init_timer3();
+	
+	sei(); //init interupts
+	
 	while (1)
 	{
-
-		PORTC |= (1 << TRIG); // set PORTD.5 to output high
-		_delay_us(40);
-		PORTC &= ~(1 << TRIG);
-		_delay_us(40);
-
-		// while echo is high, count
+		PORTC |= (1 << TRIG); //TRIGGER HIGH
+		_delay_us(30);
+		PORTC &= ~(1 << TRIG); //IF TRIGGER HIGH, TRIGGER LOW
+		_delay_us(30);
+	
 		while (PINC & (1 << ECHO))
 		{
 			watchdog++;
+			duration++;
+			
 			if (watchdog > 20000)
 			{
 				break;
 			}
-			duration++;
 			_delay_us(100);
 		}
 
-		// when the echo is low, stop counting, set the buzzer frequency and reset the duration
 		if (watchdog < 20000)
 		{
-
 			buzz_ms(duration * 10);
+			//set_timer1_interupt(duration * 5);
 		}
 		duration = 0;
-		//_delay_us(30000); // wait until echo times out
 	}
 }
