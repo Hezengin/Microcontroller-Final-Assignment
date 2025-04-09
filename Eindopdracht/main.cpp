@@ -18,41 +18,24 @@ it will then calculate the distance and change the pitch of the buzzer according
 
 uint16_t watchdog;
 uint16_t duration;
-volatile uint8_t buzzer_state = 0;
 
-ISR(TIMER1_OVF_vect)
+ISR(TIMER1_COMPA_vect)
 {
-	buzzer_state = !buzzer_state;
-	PORTA = (buzzer_state << BUZZ); 
-}
-
-ISR(TIMER3_OVF_vect)
-{
-	PORTB ^= (1 << PB2);
 	writeLedDisplay(duration);
 }
 
-void set_timer1_interupt(int ms){
-	TCNT1 = 39062 * ms/1000;
-}
-
 void init_timer1(){
-	TCCR1A = 0x00;
-	TCCR1B = (1 << 2); //256 prescaler
-	TIMSK |= (1 << TOIE1); //Init timer 1 interupt
-}
-
-void init_timer3(){
-	TCCR3A = 0x00;
-	TCCR3B = (1 << 2); //256 prescaler
-	ETIMSK |= (1 << TOIE3); //Init timer 3 interupt
+	TCCR1A = 0x00; // set timer 1 a to
+	TCCR1B = (1 << CS12) | (1 << WGM12); //Compare mode and 256 prescaler
+	TIMSK |= (1<< OCIE1A); //Init timer 1 a interupt
+	OCR1A = 39062 / 10;
 }
 
 void buzz_ms(int duration)
 {
-	PORTB |= (1<<BUZZ);
+	PORTA |= (1<<BUZZ);
 	wait(duration);
-	PORTB &= ~(1<<BUZZ);
+	PORTA &= ~(1<<BUZZ);
 	wait(duration);
 }
 
@@ -66,11 +49,8 @@ int main(void)
 	DDRC |= (1 << TRIG);
 	DDRC &= ~(0 << ECHO);
 	DDRA |= (1 << BUZZ);
-	DDRB |= (1 << BUZZ);
-	DDRB |= (1 << PB2);
 	
 	init_timer1();
-	init_timer3();
 	
 	sei(); //init interupts
 	
@@ -95,8 +75,8 @@ int main(void)
 
 		if (watchdog < 20000)
 		{
-			buzz_ms(duration * 10);
-			//set_timer1_interupt(duration * 5);
+			
+			buzz_ms(duration * 5);
 			
 		}
 		duration = 0;
